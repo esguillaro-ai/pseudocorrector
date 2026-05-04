@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Verificador de Formato — Informe</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #1a1a2e;
+      --paper: #f7f4ef;
+      --cream: #ede9e1;
+      --accent: #2d6a4f;
+      --accent-light: #52b788;
+      --accent-pale: #d8f3dc;
+      --fail: #c1121f;
+      --fail-pale: #fde8e9;
+      --warn: #e07b39;
+      --warn-pale: #fef0e6;
+      --border: #d6cfc4;
+      --shadow: rgba(26,26,46,0.08);
+    }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 24px 80px;
+    }
+    header { text-align: center; margin-bottom: 48px; }
+    header::before {
+      content: '';
+      display: block;
+      width: 3px;
+      height: 48px;
+      background: var(--accent);
+      margin: 0 auto 20px;
+    }
+    h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: clamp(2rem, 5vw, 2.8rem);
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+    h1 em { font-style: italic; color: var(--accent); }
+    .subtitle { margin-top: 10px; font-size: 0.95rem; color: #6b6459; font-weight: 300; }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px;
+      width: 100%;
+      max-width: 640px;
+      box-shadow: 0 4px 24px var(--shadow);
+    }
+    .card + .card { margin-top: 24px; }
+    .card-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #8a8077;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    .criteria-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .criteria-list li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.9rem;
+      padding: 12px 14px;
+      background: var(--paper);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .criteria-list .icon { font-size: 1.1rem; flex-shrink: 0; width: 20px; text-align: center; }
+
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+    }
+    .dropzone:hover, .dropzone.drag-over {
+      border-color: var(--accent-light);
+      background: var(--accent-pale);
+    }
+    .dropzone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .drop-icon { font-size: 2.5rem; margin-bottom: 12px; display: block; }
+    .drop-label { font-size: 0.95rem; font-weight: 500; }
+    .drop-sub { font-size: 0.8rem; color: #9a9186; margin-top: 4px; }
+    .file-chosen { margin-top: 14px; font-size: 0.85rem; color: var(--accent); font-weight: 500; }
+
+    .btn {
+      width: 100%;
+      padding: 16px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      margin-top: 24px;
+    }
+    .btn:hover:not(:disabled) { background: #235c42; }
+    .btn:active:not(:disabled) { transform: scale(0.99); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-secondary {
+      background: transparent;
+      color: var(--accent);
+      border: 1.5px solid var(--accent);
+    }
+    .btn-secondary:hover:not(:disabled) { background: var(--accent-pale); }
+
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--cream);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-card { display: none; text-align: center; }
+    .loading-card p { font-size: 0.9rem; color: #6b6459; }
+
+    #results { display: none; }
+
+    .result-summary {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 20px 24px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      font-weight: 600;
+      font-size: 1.05rem;
+    }
+    .result-summary.pass   { background: var(--accent-pale); color: var(--accent); border: 1.5px solid var(--accent-light); }
+    .result-summary.partial{ background: var(--warn-pale);   color: var(--warn);   border: 1.5px solid #f4a261; }
+    .result-summary.fail   { background: var(--fail-pale);   color: var(--fail);   border: 1.5px solid #e63946; }
+    .result-summary .big-icon { font-size: 1.8rem; flex-shrink: 0; }
+
+    .result-items { display: flex; flex-direction: column; gap: 12px; }
+    .result-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--paper);
+      animation: slideIn 0.35s ease forwards;
+      opacity: 0;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .result-item.cumple    { border-left: 3px solid var(--accent-light); }
+    .result-item.no-cumple { border-left: 3px solid var(--fail); }
+
+    .badge {
+      flex-shrink: 0;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-top: 2px;
+      white-space: nowrap;
+    }
+    .badge.cumple    { background: var(--accent-pale); color: var(--accent); }
+    .badge.no-cumple { background: var(--fail-pale);   color: var(--fail); }
+
+    .result-content strong { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; }
+    .result-content p      { font-size: 0.82rem; color: #6b6459; line-height: 1.55; }
+
+    .observations {
+      margin-top: 20px;
+      padding: 16px;
+      background: var(--cream);
+      border-radius: 10px;
+      font-size: 0.85rem;
+      color: #4a4540;
+      line-height: 1.6;
+    }
+    .observations strong { display: block; margin-bottom: 4px; color: var(--ink); font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    .error-box {
+      display: none;
+      padding: 14px 18px;
+      background: var(--fail-pale);
+      border: 1px solid #e63946;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      color: var(--fail);
+      margin-top: 16px;
+    }
+    .error-box.show { display: block; }
+
+    footer { margin-top: 48px; font-size: 0.78rem; color: #b0a99f; text-align: center; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Verificador de <em>Formato</em></h1>
+  <p class="subtitle">Verificación automática · Archivos Word (.docx) · Sin internet</p>
+</header>
+
+<div class="card">
+  <div class="card-title">Criterios a verificar</div>
+  <ul class="criteria-list">
+    <li><span class="icon">🔠</span> Título con tamaño <strong>14pt</strong> y efecto <strong>negrita</strong></li>
+    <li><span class="icon">📝</span> Cuerpo del texto en tamaño <strong>12pt</strong></li>
+    <li><span class="icon">•</span> Uso de <strong>viñetas</strong> en al menos un listado</li>
+    <li><span class="icon">𝗕</span> Texto resaltado en <strong>negrita</strong> dentro del cuerpo</li>
+    <li><span class="icon">🔗</span> Al menos un <strong>hipervínculo</strong> insertado</li>
+  </ul>
+</div>
+
+<div class="card">
+  <div class="card-title">Cargar documento</div>
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="fileInput" accept=".docx"/>
+    <span class="drop-icon">📄</span>
+    <p class="drop-label">Arrastrá el archivo acá o hacé clic para elegirlo</p>
+    <p class="drop-sub">Solo archivos Word .docx · Máximo 20 MB</p>
+    <p class="file-chosen" id="fileName"></p>
+  </div>
+  <div class="error-box" id="errorBox"></div>
+  <button class="btn" id="analyzeBtn" disabled onclick="analyzeDocument()">Verificar formato</button>
+</div>
+
+<div class="card loading-card" id="loadingCard">
+  <div class="spinner"></div>
+  <p>Analizando el documento…</p>
+</div>
+
+<div class="card" id="results">
+  <div class="card-title">Resultado del análisis</div>
+  <div id="resultSummary"></div>
+  <div id="resultItems"></div>
+  <div id="observations"></div>
+  <button class="btn btn-secondary" onclick="resetForm()" style="margin-top:24px">Analizar otro documento</button>
+</div>
+
+<footer>Análisis 100% local · Ningún dato se envía a servidores externos</footer>
+
+<script>
+// ── Namespace constant ─────────────────────────────────────────────────────
+const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+// ── UI wiring ──────────────────────────────────────────────────────────────
+const fileInput  = document.getElementById('fileInput');
+const fileNameEl = document.getElementById('fileName');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const dropzone   = document.getElementById('dropzone');
+const errorBox   = document.getElementById('errorBox');
+let selectedFile = null;
+
+dropzone.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', ()  => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+function handleFile(f) {
+  hideError();
+  if (!f.name.toLowerCase().endsWith('.docx')) { showError('Solo se aceptan archivos .docx (Word).'); return; }
+  if (f.size > 20 * 1024 * 1024) { showError('El archivo supera los 20 MB.'); return; }
+  selectedFile = f;
+  fileNameEl.textContent = '📎 ' + f.name;
+  analyzeBtn.disabled = false;
+}
+const showError = msg => { errorBox.textContent = msg; errorBox.classList.add('show'); };
+const hideError = ()  => errorBox.classList.remove('show');
+
+// ── XML helpers ────────────────────────────────────────────────────────────
+const xmlParser = new DOMParser();
+
+function parseXml(str)         { return xmlParser.parseFromString(str, 'text/xml'); }
+function wEls(el, tag)         { return Array.from(el.getElementsByTagNameNS(W, tag)); }
+function wEl(el, tag)          { return el.getElementsByTagNameNS(W, tag)[0] || null; }
+function wVal(el)              { return el ? (el.getAttributeNS(W,'val') || el.getAttribute('w:val') || '') : ''; }
+function wAttr(el, a)          { return el ? (el.getAttributeNS(W,a)   || el.getAttribute('w:'+a)   || '') : ''; }
+function getText(p)            { return wEls(p,'t').map(t=>t.textContent).join('').trim(); }
+function getPStyleName(p)      { const ps = wEl(wEl(p,'pPr'),'pStyle'); return ps ? wVal(ps) : ''; }
+
+function isBoldRPr(rPr) {
+  if (!rPr) return false;
+  const bs = wEls(rPr, 'b');
+  if (!bs.length) return false;
+  const v = wVal(bs[0]);
+  return v !== '0' && v !== 'false';
+}
+
+function getSzHalfPt(rPr) {
+  if (!rPr) return null;
+  const sz = wEl(rPr, 'sz');
+  if (!sz) return null;
+  const v = parseInt(wVal(sz));
+  return isNaN(v) ? null : v;
+}
+
+function hasNumPr(p) {
+  const pPr = wEl(p, 'pPr');
+  if (!pPr) return false;
+  const numPr = wEl(pPr, 'numPr');
+  if (!numPr) return false;
+  const numId = wEl(numPr, 'numId');
+  return numId ? parseInt(wVal(numId)) > 0 : false;
+}
+
+const HEADING_KEYS = ['heading','ttulo','titulo','title','encabezado','cabeçalho'];
+function isHeadingStyle(name) {
+  const s = name.toLowerCase();
+  return HEADING_KEYS.some(k => s.includes(k)) || /^(h[1-6]|1|2|3)$/.test(s);
+}
+
+// Get Normal style default font size (half-points) from styles.xml
+function getDefaultBodySz(stylesXml) {
+  if (!stylesXml) return null;
+  // docDefaults
+  const dd = wEl(stylesXml, 'docDefaults');
+  if (dd) {
+    const sz = getSzHalfPt(wEl(wEl(dd,'rPrDefault'),'rPr'));
+    if (sz) return sz;
+  }
+  // Normal / default paragraph style
+  for (const s of wEls(stylesXml, 'style')) {
+    const isDefault = wAttr(s,'default') === '1';
+    const type      = wAttr(s,'type');
+    const id        = wAttr(s,'styleId').toLowerCase();
+    if ((isDefault && type === 'paragraph') || id === 'normal' || id === 'a') {
+      const sz = getSzHalfPt(wEl(s,'rPr'));
+      if (sz) return sz;
+    }
+  }
+  return null;
+}
+
+// ── Main analysis ──────────────────────────────────────────────────────────
+async function analyzeDocument() {
+  if (!selectedFile) return;
+  hideError();
+  analyzeBtn.disabled = true;
+  document.getElementById('loadingCard').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+
+  // Small delay so the spinner renders before heavy JS
+  await new Promise(r => setTimeout(r, 30));
+
+  try {
+    const zip = await JSZip.loadAsync(await selectedFile.arrayBuffer());
+
+    const docXmlStr  = await zip.file('word/document.xml').async('string');
+    const stylesFile = zip.file('word/styles.xml');
+    const relsFile   = zip.file('word/_rels/document.xml.rels');
+
+    const docXml    = parseXml(docXmlStr);
+    const stylesXml = stylesFile ? parseXml(await stylesFile.async('string')) : null;
+    const relsXml   = relsFile   ? parseXml(await relsFile.async('string'))   : null;
+
+    const paras = wEls(docXml, 'p');
+    const results = [];
+
+    // ── 1. Título tamaño 14pt y negrita ─────────────────────────────────
+    {
+      let found = false, detail = '';
+      const nonEmpty = paras.filter(p => getText(p).length > 0).slice(0, 7);
+
+      for (const p of nonEmpty) {
+        const style = getPStyleName(p);
+        if (style && isHeadingStyle(style)) {
+          found  = true;
+          detail = `El documento usa el estilo de título "${style}", que aplica 14pt y negrita automáticamente.`;
+          break;
+        }
+        // Check runs for bold + sz ≥ 26 (13pt — slight tolerance for "14pt")
+        for (const r of wEls(p, 'r')) {
+          const rPr = wEl(r, 'rPr');
+          const bold = isBoldRPr(rPr);
+          const sz   = getSzHalfPt(rPr);
+          if (bold && sz !== null && sz >= 26) {
+            found  = true;
+            detail = `Se detectó un párrafo inicial con negrita y tamaño ${sz/2}pt, que corresponde al título.`;
+            break;
+          }
+        }
+        if (found) break;
+      }
+
+      if (!found)
+        detail = 'No se encontró un título con negrita y tamaño 14pt al inicio del documento. '
+               + 'Asegurate de aplicar negrita y fuente 14pt al título, o usá el estilo "Título 1".';
+      results.push({ nombre: 'Título 14pt y negrita', cumple: found, justificacion: detail });
+    }
+
+    // ── 2. Texto cuerpo 12pt ─────────────────────────────────────────────
+    {
+      let found = false, detail = '';
+      const defaultSz = getDefaultBodySz(stylesXml);
+
+      const bodyParas = paras
+        .filter(p => !isHeadingStyle(getPStyleName(p)) && getText(p).length > 3)
+        .slice(0, 30);
+
+      let cnt12 = 0, cntOther = 0, cntNone = 0;
+      for (const p of bodyParas) {
+        let p12 = false, pOther = false, pNone = false;
+        for (const r of wEls(p, 'r')) {
+          const sz = getSzHalfPt(wEl(r,'rPr'));
+          if (sz === null) pNone = true;
+          else if (sz === 24) p12 = true;
+          else pOther = true;
+        }
+        if (p12) cnt12++;
+        else if (pNone) cntNone++;
+        else cntOther++;
+      }
+
+      if (cnt12 > 0) {
+        found  = true;
+        detail = `Se encontraron ${cnt12} párrafo(s) del cuerpo con fuente explícita de 12pt.`;
+      } else if (cntNone > 0 && cntOther === 0) {
+        if (defaultSz === null || defaultSz === 24) {
+          found  = true;
+          detail = 'El cuerpo del texto hereda el tamaño predeterminado del documento (12pt).';
+        } else {
+          detail = `El tamaño predeterminado del documento es ${defaultSz/2}pt. Cambialo a 12pt en el cuerpo.`;
+        }
+      } else if (cntOther > 0) {
+        detail = 'El cuerpo del texto no usa consistentemente 12pt. Seleccioná los párrafos y aplicá fuente 12.';
+      } else {
+        found  = defaultSz === null || defaultSz === 24;
+        detail = found
+          ? 'No se pudo leer el tamaño explícitamente, pero el predeterminado del documento es 12pt.'
+          : 'No se pudo confirmar tamaño 12pt en el cuerpo.';
+      }
+      results.push({ nombre: 'Texto cuerpo 12pt', cumple: found, justificacion: detail });
+    }
+
+    // ── 3. Viñetas ───────────────────────────────────────────────────────
+    {
+      const bulletCount = paras.filter(hasNumPr).length;
+      const found = bulletCount > 0;
+      results.push({
+        nombre: 'Uso de viñetas',
+        cumple: found,
+        justificacion: found
+          ? `Se encontraron ${bulletCount} ítem(s) con viñetas o numeración en el documento.`
+          : 'No se encontraron viñetas ni listas numeradas. Usá el botón de viñetas en Word para agregarlas.'
+      });
+    }
+
+    // ── 4. Negrita en el cuerpo ──────────────────────────────────────────
+    {
+      let found = false, boldCount = 0;
+      for (const p of paras) {
+        if (isHeadingStyle(getPStyleName(p)) || getText(p).length === 0) continue;
+        for (const r of wEls(p, 'r')) {
+          if (isBoldRPr(wEl(r,'rPr')) && wEls(r,'t').some(t => t.textContent.trim())) {
+            found = true; boldCount++; break;
+          }
+        }
+      }
+      results.push({
+        nombre: 'Texto en negrita en el cuerpo',
+        cumple: found,
+        justificacion: found
+          ? `Se encontró texto en negrita en ${boldCount} párrafo(s) del cuerpo del documento.`
+          : 'No hay texto en negrita en el cuerpo (fuera del título). Seleccioná una palabra clave y aplicale negrita.'
+      });
+    }
+
+    // ── 5. Hipervínculo insertado ────────────────────────────────────────
+    {
+      const inlineLinks = wEls(docXml, 'hyperlink').length;
+
+      let relLinks = 0;
+      if (relsXml) {
+        relLinks = Array.from(relsXml.getElementsByTagName('Relationship'))
+          .filter(r => (r.getAttribute('Type') || '').includes('hyperlink')).length;
+      }
+
+      const found = inlineLinks > 0 || relLinks > 0;
+      const count = Math.max(inlineLinks, relLinks);
+      results.push({
+        nombre: 'Hipervínculo insertado',
+        cumple: found,
+        justificacion: found
+          ? `Se encontraron ${count} hipervínculo(s) en el documento.`
+          : 'No se encontraron hipervínculos. Seleccioná un texto, usá Insertar → Hipervínculo y pegá la URL.'
+      });
+    }
+
+    renderResults(results);
+
+  } catch (err) {
+    document.getElementById('loadingCard').style.display = 'none';
+    analyzeBtn.disabled = false;
+    console.error(err);
+    showError('No se pudo leer el archivo. Verificá que sea un .docx válido. (' + err.message + ')');
+  }
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function renderResults(results) {
+  document.getElementById('loadingCard').style.display = 'none';
+
+  const total  = results.length;
+  const passed = results.filter(r => r.cumple).length;
+
+  const sumEl = document.getElementById('resultSummary');
+  if (passed === total) {
+    sumEl.className = 'result-summary pass';
+    sumEl.innerHTML = `<span class="big-icon">✅</span><span>Cumple con todos los criterios de formato (${passed}/${total})</span>`;
+  } else if (passed === 0) {
+    sumEl.className = 'result-summary fail';
+    sumEl.innerHTML = `<span class="big-icon">❌</span><span>No cumple con ningún criterio de formato (${passed}/${total})</span>`;
+  } else {
+    sumEl.className = 'result-summary partial';
+    sumEl.innerHTML = `<span class="big-icon">⚠️</span><span>Cumple parcialmente con los criterios (${passed}/${total})</span>`;
+  }
+
+  const itemsEl = document.getElementById('resultItems');
+  itemsEl.innerHTML = '';
+  results.forEach((r, i) => {
+    const div = document.createElement('div');
+    div.className = 'result-item ' + (r.cumple ? 'cumple' : 'no-cumple');
+    div.style.animationDelay = (i * 80) + 'ms';
+    div.innerHTML = `
+      <span class="badge ${r.cumple ? 'cumple' : 'no-cumple'}">${r.cumple ? 'Cumple' : 'No cumple'}</span>
+      <div class="result-content">
+        <strong>${r.nombre}</strong>
+        <p>${r.justificacion}</p>
+      </div>`;
+    itemsEl.appendChild(div);
+  });
+
+  const missing = results.filter(r => !r.cumple).map(r => r.nombre);
+  const obsEl = document.getElementById('observations');
+  obsEl.innerHTML = missing.length === 0
+    ? `<strong>Observación general</strong>El documento cumple con todos los criterios establecidos. ¡Buen trabajo!`
+    : `<strong>Observación general</strong>Para completar el formato, revisá: ${missing.join(', ')}.`;
+
+  document.getElementById('results').style.display = 'block';
+}
+
+function resetForm() {
+  selectedFile = null;
+  fileInput.value = '';
+  fileNameEl.textContent = '';
+  analyzeBtn.disabled = true;
+  document.getElementById('results').style.display = 'none';
+  hideError();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>
